@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Brain Dump → Tree</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;600&family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;1,9..144,500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --stone: #EAE6DD;
+    --stone-dim: #DDD8CC;
+    --ink: #2C2A26;
+    --ink-soft: #6B6659;
+    --scrawl: #3C4770;
+    --scrawl-soft: #5A6494;
+    --root: #3F5D46;
+    --root-soft: #6E8A73;
+    --leaf: #C99A3B;
+    --paper: #F3F0E8;
+    --line: #D2CBBB;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--stone);
+    color:var(--ink);
+    font-family:'IBM Plex Sans', sans-serif;
+    min-height:100vh;
+    padding:20px 14px 60px;
+  }
+  .wrap{max-width:640px;margin:0 auto;}
+
+  header{margin-bottom:22px;}
+  .eyebrow{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    letter-spacing:0.12em;
+    text-transform:uppercase;
+    color:var(--ink-soft);
+    margin-bottom:6px;
+  }
+  h1{
+    font-family:'Fraunces', serif;
+    font-weight:600;
+    font-style:italic;
+    font-size:28px;
+    margin:0;
+    line-height:1.15;
+  }
+  h1 span{font-style:normal;color:var(--root);}
+
+  .panel{
+    background:var(--paper);
+    border:1px solid var(--line);
+    border-radius:14px;
+    padding:16px;
+    margin-bottom:18px;
+  }
+
+  .dump-label{
+    font-family:'Caveat', cursive;
+    font-size:22px;
+    color:var(--scrawl);
+    margin-bottom:6px;
+    display:block;
+  }
+  textarea{
+    width:100%;
+    min-height:110px;
+    resize:vertical;
+    border:1.5px dashed var(--scrawl-soft);
+    border-radius:10px;
+    background:transparent;
+    padding:12px;
+    font-family:'IBM Plex Sans', sans-serif;
+    font-size:15px;
+    color:var(--ink);
+    line-height:1.5;
+  }
+  textarea:focus{outline:none;border-style:solid;border-color:var(--scrawl);}
+  textarea::placeholder{color:#9A947F;font-style:italic;}
+
+  .row{display:flex;gap:10px;margin-top:10px;align-items:center;flex-wrap:wrap;}
+  button{
+    font-family:'IBM Plex Sans', sans-serif;
+    font-weight:500;
+    font-size:14px;
+    border:none;
+    border-radius:9px;
+    padding:10px 16px;
+    cursor:pointer;
+    transition:transform .12s ease, opacity .12s ease;
+  }
+  button:active{transform:scale(0.97);}
+  .btn-primary{background:var(--scrawl);color:#F3F0E8;}
+  .btn-primary:disabled{opacity:0.5;cursor:default;}
+  .btn-ghost{background:transparent;color:var(--ink-soft);border:1px solid var(--line);}
+  .btn-ghost:hover{color:var(--ink);}
+
+  .status{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12.5px;
+    color:var(--root-soft);
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
+  .status.error{color:#B3492F;}
+  .spinner{
+    width:12px;height:12px;border-radius:50%;
+    border:2px solid var(--root-soft);border-top-color:transparent;
+    animation:spin .7s linear infinite;
+  }
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  .tree-panel h2{
+    font-family:'Fraunces', serif;
+    font-size:17px;
+    font-weight:600;
+    margin:0 0 10px;
+    color:var(--root);
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+  }
+  .tree-panel h2 .count{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12px;
+    color:var(--ink-soft);
+    font-weight:400;
+  }
+
+  .empty{
+    font-family:'Caveat', cursive;
+    font-size:20px;
+    color:var(--ink-soft);
+    text-align:center;
+    padding:20px 0;
+  }
+
+  ul.tree{list-style:none;margin:0;padding-left:0;}
+  ul.tree ul.tree{padding-left:20px;border-left:1.5px solid var(--line);margin-left:9px;margin-top:2px;}
+
+  li.node{position:relative;margin:2px 0;}
+  .node-row{
+    display:flex;
+    align-items:flex-start;
+    gap:6px;
+    padding:5px 6px;
+    border-radius:8px;
+  }
+  .node-row:hover{background:rgba(63,93,70,0.06);}
+
+  .twisty{
+    width:18px;height:18px;flex:none;
+    display:flex;align-items:center;justify-content:center;
+    cursor:pointer;
+    color:var(--root-soft);
+    font-size:11px;
+    margin-top:2px;
+    user-select:none;
+  }
+  .twisty.leafless{visibility:hidden;}
+
+  .checkbox{
+    flex:none;width:18px;height:18px;margin-top:2px;
+    border-radius:5px;border:1.5px solid var(--root-soft);
+    display:flex;align-items:center;justify-content:center;
+    cursor:pointer;color:var(--leaf);font-size:12px;
+    background:var(--paper);
+  }
+  .checkbox.checked{background:var(--root);border-color:var(--root);color:var(--paper);}
+
+  .node-text{
+    flex:1;
+    font-size:14.5px;
+    line-height:1.4;
+    padding-top:1px;
+    outline:none;
+    word-break:break-word;
+  }
+  .node-text.checked{color:var(--ink-soft);text-decoration:line-through;text-decoration-color:var(--root-soft);}
+
+  .node-actions{
+    display:flex;gap:3px;flex:none;
+    opacity:0;transition:opacity .12s ease;
+  }
+  .node-row:hover .node-actions{opacity:1;}
+  .icon-btn{
+    width:22px;height:22px;border:none;background:transparent;
+    color:var(--ink-soft);cursor:pointer;font-size:14px;
+    border-radius:6px;display:flex;align-items:center;justify-content:center;
+  }
+  .icon-btn:hover{background:var(--stone-dim);color:var(--ink);}
+
+  footer{
+    text-align:center;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    color:var(--ink-soft);
+    margin-top:24px;
+  }
+  footer code{background:var(--stone-dim);padding:1px 5px;border-radius:4px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">brain dump · then branches</div>
+    <h1>Empty the mess, <span>grow the tree</span></h1>
+  </header>
+
+  <div class="panel" id="emailPanel">
+    <label class="dump-label">what's your email? (so we know your plan)</label>
+    <div class="row">
+      <input type="email" id="emailInput" placeholder="you@example.com" style="flex:1;min-width:180px;padding:10px 12px;border:1.5px dashed var(--scrawl-soft);border-radius:9px;background:transparent;font-family:'IBM Plex Sans',sans-serif;font-size:14.5px;">
+      <button class="btn-primary" id="saveEmailBtn">Continue</button>
+    </div>
+  </div>
+
+  <div class="panel" id="dumpPanel" style="display:none;">
+    <label class="dump-label">dump it all here, in any order —</label>
+    <textarea id="dumpBox" placeholder="e.g. call dentist, finish deck for Thursday, groceries, fix leaking tap, email Sam back, book flights, laundry, renew passport..."></textarea>
+    <div class="row">
+      <button class="btn-primary" id="organizeBtn">Turn into a tree</button>
+      <button class="btn-ghost" id="clearDumpBtn">Clear box</button>
+      <span class="status" id="status" style="display:none;"></span>
+    </div>
+    <div class="row" id="upgradeRow" style="display:none;">
+      <button class="btn-primary" id="upgradeBtn" style="background:var(--leaf);">Upgrade for unlimited — $9/mo</button>
+    </div>
+    <div class="row">
+      <span style="font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--ink-soft);">signed in as <span id="emailLabel"></span> · <a href="#" id="switchEmail" style="color:var(--scrawl);">switch</a></span>
+    </div>
+  </div>
+
+  <div class="panel tree-panel">
+    <h2>Your tree <span class="count" id="countLabel"></span></h2>
+    <div id="treeRoot"></div>
+  </div>
+
+  <div class="row">
+    <button class="btn-ghost" id="addRootBtn">+ Add branch manually</button>
+    <button class="btn-ghost" id="resetAllBtn">Reset everything</button>
+  </div>
+
+  <footer>saved in this browser · backend at <code>http://localhost:5000</code></footer>
+</div>
+
+<script>
+const STORAGE_KEY = 'brainDumpTree';
+const EMAIL_KEY = 'brainDumpEmail';
+const BACKEND_BASE = 'http://localhost:5000';
+
+let tree = [];
+let idCounter = 1;
+
+function getEmail(){ return localStorage.getItem(EMAIL_KEY) || ''; }
+
+function showEmailGate(){
+  document.getElementById('emailPanel').style.display = 'block';
+  document.getElementById('dumpPanel').style.display = 'none';
+}
+
+function showDumpPanel(email){
+  document.getElementById('emailPanel').style.display = 'none';
+  document.getElementById('dumpPanel').style.display = 'block';
+  document.getElementById('emailLabel').textContent = email;
+}
+
+function initEmailGate(){
+  const existing = getEmail();
+  if(existing){ showDumpPanel(existing); } else { showEmailGate(); }
+
+  document.getElementById('saveEmailBtn').onclick = () => {
+    const val = document.getElementById('emailInput').value.trim();
+    if(!val || !val.includes('@')){ alert('Enter a valid email'); return; }
+    localStorage.setItem(EMAIL_KEY, val);
+    showDumpPanel(val);
+  };
+
+  document.getElementById('switchEmail').onclick = (e) => {
+    e.preventDefault();
+    localStorage.removeItem(EMAIL_KEY);
+    showEmailGate();
+  };
+}
+
+function newId(){ return 'n' + (idCounter++) + '_' + Math.random().toString(36).slice(2,7); }
+
+function makeNode(text, children){
+  return { id: newId(), text: text, checked: false, expanded: true, children: (children||[]).map(c => makeNode(c.text, c.children)) };
+}
+
+function loadTree(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(raw) tree = JSON.parse(raw);
+  }catch(e){ tree = []; }
+  render();
+}
+
+function saveTree(){
+  try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(tree)); }
+  catch(e){ console.error('save failed', e); }
+}
+
+function countStats(nodes){
+  let total=0, done=0;
+  for(const n of nodes){
+    total++; if(n.checked) done++;
+    if(n.children && n.children.length){
+      const s = countStats(n.children);
+      total += s.total; done += s.done;
+    }
+  }
+  return {total, done};
+}
+
+function removeNode(nodes, id){
+  for(let i=0;i<nodes.length;i++){
+    if(nodes[i].id === id){ nodes.splice(i,1); return true; }
+    if(nodes[i].children && removeNode(nodes[i].children, id)) return true;
+  }
+  return false;
+}
+
+function render(){
+  const rootEl = document.getElementById('treeRoot');
+  const countLabel = document.getElementById('countLabel');
+  const stats = countStats(tree);
+  countLabel.textContent = tree.length ? `${stats.done} / ${stats.total} done` : '';
+
+  if(!tree.length){
+    rootEl.innerHTML = '<div class="empty">nothing planted yet — dump above and organize it</div>';
+    return;
+  }
+  const ul = document.createElement('ul');
+  ul.className = 'tree';
+  ul.appendChild(renderChildren(tree));
+  rootEl.innerHTML = '';
+  rootEl.appendChild(ul);
+}
+
+function renderChildren(nodes){
+  const frag = document.createDocumentFragment();
+  for(const node of nodes){
+    frag.appendChild(renderNode(node));
+  }
+  return frag;
+}
+
+function renderNode(node){
+  const li = document.createElement('li');
+  li.className = 'node';
+
+  const row = document.createElement('div');
+  row.className = 'node-row';
+
+  const hasChildren = node.children && node.children.length > 0;
+  const twisty = document.createElement('div');
+  twisty.className = 'twisty' + (hasChildren ? '' : ' leafless');
+  twisty.textContent = hasChildren ? (node.expanded ? '▾' : '▸') : '·';
+  twisty.onclick = () => { node.expanded = !node.expanded; saveTree(); render(); };
+  row.appendChild(twisty);
+
+  const checkbox = document.createElement('div');
+  checkbox.className = 'checkbox' + (node.checked ? ' checked' : '');
+  checkbox.textContent = node.checked ? '✓' : '';
+  checkbox.onclick = () => { node.checked = !node.checked; saveTree(); render(); };
+  row.appendChild(checkbox);
+
+  const textEl = document.createElement('div');
+  textEl.className = 'node-text' + (node.checked ? ' checked' : '');
+  textEl.contentEditable = true;
+  textEl.textContent = node.text;
+  textEl.onblur = () => { node.text = textEl.textContent.trim() || node.text; saveTree(); };
+  textEl.onkeydown = (e) => { if(e.key === 'Enter'){ e.preventDefault(); textEl.blur(); } };
+  row.appendChild(textEl);
+
+  const actions = document.createElement('div');
+  actions.className = 'node-actions';
+
+  const addChildBtn = document.createElement('button');
+  addChildBtn.className = 'icon-btn';
+  addChildBtn.title = 'Add sub-task';
+  addChildBtn.textContent = '+';
+  addChildBtn.onclick = () => {
+    node.children = node.children || [];
+    node.children.push(makeNode('new task'));
+    node.expanded = true;
+    saveTree(); render();
+  };
+  actions.appendChild(addChildBtn);
+
+  const delBtn = document.createElement('button');
+  delBtn.className = 'icon-btn';
+  delBtn.title = 'Delete';
+  delBtn.textContent = '×';
+  delBtn.onclick = () => { removeNode(tree, node.id); saveTree(); render(); };
+  actions.appendChild(delBtn);
+
+  row.appendChild(actions);
+  li.appendChild(row);
+
+  if(hasChildren && node.expanded){
+    const childUl = document.createElement('ul');
+    childUl.className = 'tree';
+    childUl.appendChild(renderChildren(node.children));
+    li.appendChild(childUl);
+  }
+
+  return li;
+}
+
+function setStatus(msg, showSpinner, isError){
+  const el = document.getElementById('status');
+  if(!msg){ el.style.display = 'none'; return; }
+  el.style.display = 'flex';
+  el.classList.toggle('error', !!isError);
+  el.innerHTML = (showSpinner ? '<div class="spinner"></div>' : '') + '<span>'+msg+'</span>';
+}
+
+async function organizeDump(){
+  const box = document.getElementById('dumpBox');
+  const text = box.value.trim();
+  if(!text) return;
+
+  const btn = document.getElementById('organizeBtn');
+  btn.disabled = true;
+  document.getElementById('upgradeRow').style.display = 'none';
+  setStatus('sorting the mess into branches…', true, false);
+
+  try{
+    const response = await fetch(BACKEND_BASE + '/organize', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ text, email: getEmail() })
+    });
+
+    const data = await response.json();
+
+    if(response.status === 402){
+      setStatus(data.message || "You've hit today's free limit.", false, true);
+      document.getElementById('upgradeRow').style.display = 'flex';
+      return;
+    }
+    if(!response.ok){
+      throw new Error(data.error || 'Backend returned an error');
+    }
+
+    const newNodes = (data.nodes || []).map(p => makeNode(p.text, p.children));
+    tree = tree.concat(newNodes);
+    saveTree();
+    render();
+    box.value = '';
+    setStatus('planted ' + newNodes.length + ' new branch' + (newNodes.length===1?'':'es'), false, false);
+    setTimeout(() => setStatus(null), 2500);
+  }catch(e){
+    console.error(e);
+    setStatus('couldn\'t reach the backend — is backend.py running? (' + e.message + ')', false, true);
+  }finally{
+    btn.disabled = false;
+  }
+}
+
+async function upgrade(){
+  const btn = document.getElementById('upgradeBtn');
+  btn.disabled = true;
+  btn.textContent = 'Redirecting to checkout…';
+  try{
+    const response = await fetch(BACKEND_BASE + '/create-checkout-session', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ email: getEmail() })
+    });
+    const data = await response.json();
+    if(!response.ok || !data.url) throw new Error(data.error || 'Could not start checkout');
+    window.location.href = data.url;
+  }catch(e){
+    alert('Upgrade failed: ' + e.message);
+    btn.disabled = false;
+    btn.textContent = 'Upgrade for unlimited — $9/mo';
+  }
+}
+
+document.getElementById('organizeBtn').onclick = organizeDump;
+document.getElementById('upgradeBtn').onclick = upgrade;
+document.getElementById('clearDumpBtn').onclick = () => { document.getElementById('dumpBox').value=''; };
+document.getElementById('addRootBtn').onclick = () => { tree.push(makeNode('new branch')); saveTree(); render(); };
+document.getElementById('resetAllBtn').onclick = () => {
+  if(confirm('Clear the whole tree? This cannot be undone.')){
+    tree = [];
+    saveTree();
+    render();
+  }
+};
+
+loadTree();
+initEmailGate();
+</script>
+</body>
+</html>
