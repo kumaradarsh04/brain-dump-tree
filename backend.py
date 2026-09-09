@@ -135,10 +135,7 @@ Respond with ONLY a raw JSON array, no markdown fences, no commentary, in exactl
 
 If a top-level item has no natural sub-items, use an empty children array.
 
-Brain dump:
-\"\"\"
-{dump}
-\"\"\"
+Brain dump:\"\"\"{d}\"\"\"
 """
 
 
@@ -192,7 +189,7 @@ def organize():
                 "message": f"You've used your {FREE_DAILY_LIMIT} free organizes for today.",
             }), 402
 
-    prompt = PROMPT_TEMPLATE.format(dump=dump_text)
+    prompt = PROMPT_TEMPLATE.format(d=dump_text)
 
     request_body = {
         "contents": [{"role": "user", "parts": [{"text": prompt}]}],
