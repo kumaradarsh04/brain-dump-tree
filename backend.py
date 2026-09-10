@@ -4,16 +4,16 @@ Brain Dump -> Tree backend
 A tiny Flask server that takes raw brain-dump text and asks the Gemini API
 to turn it into a hierarchical task list (categories + sub-tasks).
 
+Payments use a Razorpay Payment Link you create once in the Razorpay
+dashboard (no code needed for that part — see DEPLOYMENT.md). This backend
+only needs to verify the webhook Razorpay sends after that link gets paid.
+
 Setup
 -----
-    pip install flask flask-cors requests razorpay gunicorn
+    pip install flask flask-cors requests gunicorn
 
     export GEMINI_API_KEY="your-gemini-key"
-    export RAZORPAY_KEY_ID="rzp_test_..."          # from Razorpay dashboard, test mode first
-    export RAZORPAY_KEY_SECRET="..."
-    export RAZORPAY_PLAN_ID="plan_..."             # the recurring plan you create in Razorpay
-    export RAZORPAY_WEBHOOK_SECRET="..."           # the secret you set when creating the webhook
-    export APP_URL="http://localhost:5500"         # wherever index.html is served from
+    export RAZORPAY_WEBHOOK_SECRET="..."   # the secret you set when creating the webhook
 
 Run
 ---
@@ -26,13 +26,10 @@ The server listens on http://localhost:5000 and exposes:
         returns: {"nodes": [...]}  OR  402 + {"error": "free_limit_reached"} once the
         free daily limit (FREE_DAILY_LIMIT) is used up for that email
 
-    POST /create-checkout-session
-        body: {"email": "user@example.com"}
-        returns: {"url": "https://rzp.io/i/..."} — send the browser there
-
     POST /webhook
-        Razorpay calls this automatically after a real payment. This is what actually
-        marks an email as premium/unlimited — never trust the frontend for this.
+        Razorpay calls this automatically after your shared Payment Link is paid.
+        This is what actually marks an email as premium/unlimited — never trust
+        the frontend for this.
 
     GET /health
         simple liveness check
@@ -41,7 +38,8 @@ Storage is two flat JSON files (premium_users.json, usage.json) — fine for an 
 MVP with a handful of users; swap for a real database once you outgrow it.
 
 Then open index.html in a browser (it calls http://localhost:5000/organize).
-See DEPLOYMENT.md for putting this in front of real users and wiring up real Razorpay keys.
+See DEPLOYMENT.md for putting this in front of real users and setting up the
+Payment Link + webhook.
 """
 
 import hashlib
@@ -51,7 +49,6 @@ import os
 import re
 from datetime import date
 
-import razorpay
 import requests
 from flask import Flask, jsonify, request
 from flask_cors import CORS
@@ -61,19 +58,12 @@ CORS(app)  # allow index.html (opened as a local file or served separately) to c
 
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 
-# --- Payments (Razorpay) ------------------------------------------------
-# All of these come from your Razorpay dashboard (see DEPLOYMENT.md).
-# Nothing here costs you money to set up — Razorpay only takes a cut once a
-# real customer actually pays you.
-RAZORPAY_KEY_ID = os.environ.get("RAZORPAY_KEY_ID", "")
-RAZORPAY_KEY_SECRET = os.environ.get("RAZORPAY_KEY_SECRET", "")
-RAZORPAY_PLAN_ID = os.environ.get("RAZORPAY_PLAN_ID", "")            # the recurring Plan you create in Razorpay
+# --- Payments (Razorpay Payment Link) -----------------------------------
+# You create the Payment Link itself directly in the Razorpay dashboard (no
+# code needed for that part — see DEPLOYMENT.md). This backend only needs to
+# verify the webhook Razorpay sends after a real payment, so it can unlock
+# that customer's account. Nothing here costs money to set up.
 RAZORPAY_WEBHOOK_SECRET = os.environ.get("RAZORPAY_WEBHOOK_SECRET", "")
-APP_URL = os.environ.get("APP_URL", "http://localhost:5500")          # where index.html is served from, no trailing slash
-
-razorpay_client = None
-if RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET:
-    razorpay_client = razorpay.Client(auth=(RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET))
 
 FREE_DAILY_LIMIT = 3
 PREMIUM_FILE = "premium_users.json"
@@ -135,7 +125,10 @@ Respond with ONLY a raw JSON array, no markdown fences, no commentary, in exactl
 
 If a top-level item has no natural sub-items, use an empty children array.
 
-Brain dump:\"\"\"{d}\"\"\"
+Brain dump:
+\"\"\"
+{dump}
+\"\"\"
 """
 
 
@@ -189,7 +182,7 @@ def organize():
                 "message": f"You've used your {FREE_DAILY_LIMIT} free organizes for today.",
             }), 402
 
-    prompt = PROMPT_TEMPLATE.format(d=dump_text)
+    prompt = PROMPT_TEMPLATE.format(dump=dump_text)
 
     request_body = {
         "contents": [{"role": "user", "parts": [{"text": prompt}]}],
@@ -230,52 +223,31 @@ def organize():
         return jsonify({"error": f"Request to Gemini failed: {e}"}), 502
 
 
-@app.route("/create-checkout-session", methods=["POST"])
-def create_checkout_session():
-    if not razorpay_client or not RAZORPAY_PLAN_ID:
-        return jsonify({"error": "Razorpay is not configured on the server yet"}), 500
-
-    payload = request.get_json(silent=True) or {}
-    email = (payload.get("email") or "").strip().lower()
-    if not email:
-        return jsonify({"error": "No email provided"}), 400
-
-    try:
-        subscription = razorpay_client.subscription.create({
-            "plan_id": RAZORPAY_PLAN_ID,
-            "customer_notify": 1,
-            "total_count": 120,  # e.g. 120 monthly cycles (~10 years); Razorpay requires some finite count
-            "notes": {"email": email},
-        })
-        # short_url is a Razorpay-hosted checkout page — the browser goes straight there,
-        # same idea as a Stripe Checkout redirect.
-        return jsonify({"url": subscription["short_url"]})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
 @app.route("/webhook", methods=["POST"])
 def razorpay_webhook():
-    """Razorpay calls this automatically after a real payment succeeds.
-    This is what actually unlocks unlimited use for a paying customer."""
+    """Razorpay calls this automatically after your shared Payment Link is
+    paid. This is what actually unlocks unlimited use — never trust the
+    frontend alone for this, since anyone could fake a browser event."""
     payload = request.data
     signature = request.headers.get("X-Razorpay-Signature", "")
 
-    try:
-        razorpay_client.utility.verify_webhook_signature(
-            payload.decode("utf-8"), signature, RAZORPAY_WEBHOOK_SECRET
-        )
-    except razorpay.errors.SignatureVerificationError:
+    expected_signature = hmac.new(
+        RAZORPAY_WEBHOOK_SECRET.encode("utf-8"), payload, hashlib.sha256
+    ).hexdigest()
+
+    if not hmac.compare_digest(expected_signature, signature):
         return jsonify({"error": "Invalid webhook signature"}), 400
 
     event = json.loads(payload)
     event_type = event.get("event", "")
 
-    # "subscription.activated" fires on first successful payment;
-    # "subscription.charged" fires on this and every renewal after.
-    if event_type in ("subscription.activated", "subscription.charged"):
-        entity = event.get("payload", {}).get("subscription", {}).get("entity", {})
-        email = (entity.get("notes", {}) or {}).get("email", "").lower()
+    # Triggered when your Payment Link is paid. The customer's own email —
+    # the one they typed into Razorpay's checkout page — comes back here.
+    if event_type == "payment_link.paid":
+        payment_entity = (
+            event.get("payload", {}).get("payment", {}).get("entity", {})
+        )
+        email = (payment_entity.get("email") or "").strip().lower()
         if email:
             mark_premium(email)
 
