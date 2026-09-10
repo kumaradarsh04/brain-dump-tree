@@ -228,7 +228,7 @@
       <span class="status" id="status" style="display:none;"></span>
     </div>
     <div class="row" id="upgradeRow" style="display:none;">
-      <button class="btn-primary" id="upgradeBtn" style="background:var(--leaf);">Upgrade for unlimited — $9/mo</button>
+      <button class="btn-primary" id="upgradeBtn" style="background:var(--leaf);">Upgrade for unlimited — ₹399/mo</button>
     </div>
     <div class="row">
       <span style="font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--ink-soft);">signed in as <span id="emailLabel"></span> · <a href="#" id="switchEmail" style="color:var(--scrawl);">switch</a></span>
@@ -251,7 +251,13 @@
 <script>
 const STORAGE_KEY = 'brainDumpTree';
 const EMAIL_KEY = 'brainDumpEmail';
+// 👇 PASTE YOUR RENDER URL HERE after deploying backend.py (see DEPLOYMENT.md)
+//    e.g. 'https://brain-dump-tree.onrender.com'  — no trailing slash
 const BACKEND_BASE = 'http://localhost:5000';
+
+// 👇 PASTE YOUR RAZORPAY PAYMENT LINK HERE after creating it (see DEPLOYMENT.md)
+//    e.g. 'https://rzp.io/rzp/abcXYZ12'
+const RAZORPAY_PAYMENT_LINK = 'https://rzp.io/rzp/le4kBbHG';
 
 let tree = [];
 let idCounter = 1;
@@ -465,24 +471,13 @@ async function organizeDump(){
   }
 }
 
-async function upgrade(){
-  const btn = document.getElementById('upgradeBtn');
-  btn.disabled = true;
-  btn.textContent = 'Redirecting to checkout…';
-  try{
-    const response = await fetch(BACKEND_BASE + '/create-checkout-session', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ email: getEmail() })
-    });
-    const data = await response.json();
-    if(!response.ok || !data.url) throw new Error(data.error || 'Could not start checkout');
-    window.location.href = data.url;
-  }catch(e){
-    alert('Upgrade failed: ' + e.message);
-    btn.disabled = false;
-    btn.textContent = 'Upgrade for unlimited — $9/mo';
+function upgrade(){
+  if(!RAZORPAY_PAYMENT_LINK || RAZORPAY_PAYMENT_LINK.includes('PASTE')){
+    alert('Payment link not set up yet — paste your Razorpay Payment Link into index.html first (see DEPLOYMENT.md).');
+    return;
   }
+  alert('Important: on the Razorpay page, enter the SAME email you used here (' + getEmail() + ') so your account gets unlocked automatically after payment.');
+  window.open(RAZORPAY_PAYMENT_LINK, '_blank');
 }
 
 document.getElementById('organizeBtn').onclick = organizeDump;
