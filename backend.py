@@ -111,7 +111,7 @@ def check_and_increment_usage(email):
 
 # Pick whichever current Gemini model fits your budget/latency needs.
 # "gemini-2.5-flash" is a solid, inexpensive default as of 2026.
-GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3-flash-preview")
 
 GEMINI_URL = (
     f"https://generativelanguage.googleapis.com/v1beta/models/"
