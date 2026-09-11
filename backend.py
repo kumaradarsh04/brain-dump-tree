@@ -65,7 +65,7 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 # that customer's account. Nothing here costs money to set up.
 RAZORPAY_WEBHOOK_SECRET = os.environ.get("RAZORPAY_WEBHOOK_SECRET", "")
 
-FREE_DAILY_LIMIT = 3
+FREE_DAILY_LIMIT = 21
 PREMIUM_FILE = "premium_users.json"
 USAGE_FILE = "usage.json"
 
